@@ -1,0 +1,66 @@
+x-deploy-config: &default-deploy
+  resources:
+    reservations:
+      cpus: "1"
+      memory: 1gb
+    limits:
+      cpus: "2"
+      memory: 2gb
+
+x-networks-config: &default-network
+  networks:
+    - mlopsnetwork
+
+name: homelab-mlops
+services:
+  mlflow-database:
+    restart: always
+    image: postgres:17
+    container_name: mlflow_database
+    ports:
+      - "5435:5432"
+    environment:
+      - POSTGRES_USER=mlflow
+      - POSTGRES_PASSWORD=mlflow
+      - POSTGRES_DATABASE=mlflow
+    volumes:
+      - mlflow-database:/var/lib/postgresql/data/
+    deploy: *default-deploy
+    <<: *default-network
+
+  tracking_server:
+    restart: always
+    image: mlflow-server:latest
+    build:
+      context: .
+      dockerfile: mlflow.Dockerfile
+    container_name: mlflow_server
+    ports:
+      - "5005:5000"
+    environment:
+      - AWS_ACCESS_KEY_ID=o2QNQbVzFPi7UxuzPFLS
+      - AWS_SECRET_ACCESS_KEY=3jFr912WAWkaMnN5F6W3i16eKd7ikadYkwV1sMcf
+      - MLFLOW_S3_ENDPOINT_URL=http://minio_bucket_S3:9005
+      - MLFLOW_S3_IGNORE_TLS=true
+    command:
+      - 'mlflow'
+      - 'server'
+      - '--backend-store-uri'
+      - 'postgresql://mlflow:mlflow@mlflow_database:5432/mlflow'
+      - '--default-artifact-root'
+      - 's3://mlflow/'
+      - '--host'
+      - '0.0.0.0'
+      - '--port'
+      - '5000'
+    deploy: *default-deploy
+    <<: *default-network
+
+volumes:
+  mlflow-database:
+
+networks:
+  mlopsnetwork:
+    driver: bridge
+    name: homelabnetwork
+    external: true
